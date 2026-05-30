@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZYVR — Autonomous Operational Infrastructure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Unbounded:wght@300;400;700;900&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --void:               #000000;
+    --light:              #EAEAEA;
+    --graphite:           #1A1A1A;
+    --emerald:            #3A8A5A;
+    --telemetry:          #737373;
+    --platinum:           #EAEAEA;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    background: var(--void);
+    color: var(--light);
+    font-family: 'Syne', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* ── GRID AS SUNKEN FLOOR ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(58,58,58,0.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(58,58,58,0.4) 1px, transparent 1px);
+    background-size: 80px 80px;
+    pointer-events: none;
+    z-index: 0;
+    will-change: transform;
+    transform: translate3d(0,0,0);
+    backface-visibility: hidden;
+  }
+
+  /* Depth vignette — baked gradient, no repaint cost */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 50% 50%,
+      transparent 0%, rgba(0,0,0,0.75) 100%);
+    pointer-events: none;
+    z-index: 1;
+    will-change: transform;
+    transform: translate3d(0,0,0);
+    backface-visibility: hidden;
+  }
+
+  /* ── CSS STARS ── */
+  #stars {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    will-change: transform;
+    transform: translate3d(0,0,0);
+    backface-visibility: hidden;
+  }
+  .star {
+    position: absolute;
+    border-radius: 50%;
+    background: #fff;
+    animation: twinkle var(--dur, 3s) ease-in-out infinite var(--delay, 0s);
+    opacity: 0;
+    will-change: opacity;
+    transform: translate3d(0,0,0);
+    backface-visibility: hidden;
+  }
+  @keyframes twinkle {
+    0%   { opacity: 0; }
+    20%  { opacity: calc(var(--peak, 0.75) * 0.4); }
+    50%  { opacity: var(--peak, 0.75); }
+    80%  { opacity: calc(var(--peak, 0.75) * 0.4); }
+    100% { opacity: 0; }
+  }
+
+  /* ── SCROLL REVEAL ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* depth-rim: removed box-shadow (huge paint area) — vignette handles it */
+  .depth-rim   { display: none; }
+  .depth-corners { display: none; }
+
+  #hero, .section, #audit, footer {
+    position: relative;
+    z-index: 3;
+    /* Removed filter:drop-shadow — triggers full-page repaint on every scroll */
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 3;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+
+  /* ── MICRO STATUS TAG ── */
+  .sys-active-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--emerald);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .sys-active-tag::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--emerald);
+    flex-shrink: 0;
+  }
+
+  /* ── TYPOGRAPHY ── */
+  .mono { font-family: 'DM Mono', monospace; }
+  .display { font-family: 'Unbounded', sans-serif; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 103;
+    background: var(--void);
+    border-bottom: 1px solid var(--graphite);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 48px;
+  }
+
+  .nav-mark {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.35em;
+    color: var(--light);
+    text-decoration: none;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .nav-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--telemetry);
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--emerald);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(58,138,90,0.4); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(58,138,90,0); }
+  }
+
+  .nav-ver {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--telemetry);
+    letter-spacing: 0.1em;
+    opacity: 0.5;
+  }
+
+  /* ── HERO ── */
+  #hero {
+    min-height: 100vh;
+    padding-top: 52px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-bottom: 80px;
+    border-bottom: 1px solid var(--graphite);
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+
+  .hero-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--emerald);
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    display: block;
+    width: 20px;
+    height: 1px;
+    background: var(--emerald);
+  }
+
+  .hero-h1 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(44px, 7vw, 112px);
+    font-weight: 900;
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    color: var(--light);
+    margin-bottom: 48px;
+  }
+
+  .hero-h1 em {
+    font-style: normal;
+    color: var(--emerald);
+    font-weight: 900;
+  }
+
+  .hero-sub {
+    font-size: clamp(13px, 1.1vw, 17px);
+    color: var(--telemetry);
+    max-width: 580px;
+    line-height: 1.8;
+    margin-bottom: 56px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    background: transparent;
+    border: 1px solid var(--platinum);
+    color: var(--platinum);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 20px 40px;
+    text-decoration: none;
+    cursor: crosshair;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .hero-cta:hover {
+    background: var(--platinum);
+    color: #000000;
+    border-color: var(--platinum);
+  }
+
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 64px;
+    border: 1px solid var(--graphite);
+  }
+
+  .hero-stat {
+    padding: 20px 12px;
+    border-right: 1px solid var(--graphite);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .hero-stat:last-child { border-right: none; }
+
+  .hero-stat-num {
+    display: block;
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(14px, 4vw, 20px);
+    font-weight: 700;
+    color: var(--light);
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+    white-space: nowrap;
+  }
+
+  .hero-stat-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--telemetry);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* ── SECTION SCAFFOLD ── */
+  .section {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 120px 48px;
+    border-bottom: 1px solid var(--graphite);
+  }
+
+  .section-tag {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.3em;
+    color: var(--telemetry);
+    text-transform: uppercase;
+    margin-bottom: 56px;
+  }
+
+  .section-tag-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--emerald);
+    border: 1px solid var(--graphite);
+    background: rgba(58,138,90,0.08);
+    padding: 3px 8px;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── LOGIC ── */
+  .logic-grid {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    gap: 64px;
+    align-items: start;
+  }
+
+  .logic-h2 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(24px, 3.5vw, 38px);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: var(--light);
+  }
+
+  .logic-h2 em {
+    font-style: normal;
+    color: var(--emerald);
+    font-weight: 900;
+  }
+
+  .logic-body {
+    font-size: 13px;
+    color: var(--telemetry);
+    line-height: 1.85;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  .logic-pull {
+    margin: 28px 0;
+    padding: 20px 24px;
+    border-left: 2px solid var(--emerald);
+    background: rgba(58,138,90,0.05);
+  }
+
+  .logic-pull p {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(13px, 1.5vw, 16px);
+    font-weight: 700;
+    color: var(--light);
+    line-height: 1.35;
+    letter-spacing: -0.02em;
+  }
+
+  /* ── PROOF ── */
+  .proof-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 40px;
+    align-items: start;
+    padding: 40px 0;
+    border-bottom: 1px solid var(--graphite);
+  }
+
+  .proof-row:first-child { border-top: 1px solid var(--graphite); }
+
+  .proof-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 900;
+    color: var(--light);
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .proof-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--emerald);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  .proof-quote {
+    font-size: 12px;
+    color: var(--telemetry);
+    line-height: 1.75;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.02em;
+    margin-bottom: 12px;
+  }
+
+  .proof-attr {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: rgba(115,115,115,0.5);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ── INFRASTRUCTURE ── */
+  .infra-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: end;
+    margin-bottom: 56px;
+  }
+
+  .infra-h2 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(24px, 3.5vw, 38px);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: var(--light);
+  }
+
+  .infra-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--telemetry);
+    line-height: 1.9;
+    letter-spacing: 0.05em;
+  }
+
+  /* TABLE HEADER */
+  .sys-head {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+    gap: 0;
+    padding: 10px 0;
+    border-top: 1px solid var(--graphite);
+    border-bottom: 1px solid var(--graphite);
+    margin-bottom: 0;
+  }
+
+  .sys-head-col {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    color: var(--telemetry);
+    text-transform: uppercase;
+    padding: 0 8px;
+  }
+
+  .sys-head-col:first-child { padding-left: 0; }
+
+  /* SERVICE CARD */
+  .sys-card {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+    gap: 0;
+    padding: 40px 0;
+    border-bottom: 1px solid var(--graphite);
+    position: relative;
+    cursor: crosshair;
+  }
+
+  .sys-card:hover {
+    border-bottom-color: var(--emerald);
+  }
+
+  .sys-card::before {
+    content: '';
+    position: absolute;
+    left: -24px; right: -24px;
+    top: 0; bottom: 0;
+    background: rgba(58,138,90,0);
+    transition: background 0.2s;
+    pointer-events: none;
+  }
+
+  .sys-card:hover::before {
+    background: rgba(58,138,90,0.04);
+  }
+
+  .sys-card > div { padding: 0 8px; }
+  .sys-card > div:first-child { padding-left: 0; }
+
+  .sys-id {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--emerald);
+    letter-spacing: 0.15em;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .sys-name {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--light);
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+  }
+
+  .sys-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--telemetry);
+    border: 1px solid var(--graphite);
+    padding: 2px 7px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+
+  .sys-col {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--telemetry);
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+  }
+
+  .sys-col-label {
+    display: block;
+    font-size: 8px;
+    color: rgba(115,115,115,0.5);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .sys-price {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(16px, 2vw, 22px);
+    font-weight: 700;
+    color: var(--light);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+
+  .sys-deposit {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--telemetry);
+    letter-spacing: 0.08em;
+    margin-bottom: 18px;
+  }
+
+  .sys-link {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    color: var(--light);
+    text-transform: uppercase;
+    text-decoration: none;
+    border: 1px solid var(--graphite);
+    padding: 8px 12px;
+    display: inline-block;
+    transition: border-color 0.1s, background 0.1s;
+    cursor: crosshair;
+  }
+
+  .sys-link:hover {
+    border-color: var(--emerald);
+    background: rgba(58,138,90,0.1);
+  }
+
+  /* ── AUDIT ── */
+  #audit {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 120px 48px;
+    border-bottom: 1px solid var(--graphite);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .audit-watermark {
+    position: absolute;
+    bottom: -30px;
+    right: -10px;
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(80px, 18vw, 200px);
+    font-weight: 900;
+    color: rgba(26,26,26,0.8);
+    line-height: 1;
+    pointer-events: none;
+    letter-spacing: -0.05em;
+    z-index: 0;
+  }
+
+  .audit-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 5fr 4fr;
+    gap: 64px;
+    border: 1px solid rgba(163, 184, 153, 0.3);
+    padding: 48px;
+    background: transparent;
+  }
+
+  .audit-h2 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(22px, 6vw, 52px);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: var(--emerald);
+    margin-bottom: 32px;
+  }
+
+  .audit-h2 em {
+    font-style: normal;
+    color: var(--light);
+    font-weight: 900;
+    -webkit-text-fill-color: #EAEAEA;
+  }
+
+  .req-list { margin-bottom: 48px; }
+
+  .req-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--graphite);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--telemetry);
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+  }
+
+  .req-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--emerald);
+    border: 1px solid var(--graphite);
+    background: rgba(58,138,90,0.08);
+    padding: 3px 6px;
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .audit-btn {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--graphite);
+    color: var(--platinum);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 22px 0;
+    text-align: center;
+    cursor: crosshair;
+    transition: background 0.15s ease-in-out, color 0.15s ease-in-out;
+    font-weight: 400;
+    margin-bottom: 0;
+  }
+
+  .audit-btn:hover {
+    background: var(--platinum);
+    color: #000000;
+    border-color: var(--platinum);
+  }
+
+  .audit-capacity {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: rgba(115,115,115,0.4);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 16px;
+  }
+
+  /* PROTOCOL */
+  .protocol-header {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--light);
+    letter-spacing: 0.08em;
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--emerald);
+  }
+
+  .protocol-item {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--graphite);
+    align-items: baseline;
+  }
+
+  .p-step {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--emerald);
+    background: rgba(58,138,90,0.08);
+    border: 1px solid var(--graphite);
+    padding: 3px 4px;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .p-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--telemetry);
+    letter-spacing: 0.04em;
+    line-height: 1.7;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-mark {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: rgba(115,115,115,0.3);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .footer-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: rgba(115,115,115,0.3);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes modalOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(16px); }
+  }
+
+  #modal.is-closing .modal-box {
+    animation: modalOut 0.15s cubic-bezier(0.4,0,1,1) forwards;
+  }
+
+  #modal:not(.is-closing) .modal-box {
+    animation: modalIn 0.3s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+
+  .fu { opacity: 0; animation: fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) forwards; }
+  .d1 { animation-delay: 0.1s; }
+  .d2 { animation-delay: 0.25s; }
+  .d3 { animation-delay: 0.4s; }
+  .d4 { animation-delay: 0.55s; }
+  .d5 { animation-delay: 0.7s; }
+
+  /* ── MODAL ── */
+  #modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: transparent;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    min-height: 100dvh;
+    overflow-y: auto;
+  }
+
+  .modal-box {
+    position: relative;
+    z-index: 1;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.06);
+    max-width: 960px;
+    width: 100%;
+    padding: 0;
+    margin: auto 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    backdrop-filter: none;
+  }
+
+  .modal-left {
+    padding: 48px;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .modal-right {
+    padding: 48px;
+    background: transparent;
+    padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--telemetry);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    cursor: crosshair;
+    padding: 6px 10px;
+    transition: border-color 0.15s, color 0.15s;
+    z-index: 2;
+  }
+
+  .modal-close:hover {
+    border-color: rgba(255,255,255,0.2);
+    color: var(--light);
+  }
+
+  .modal-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.25em;
+    color: var(--emerald);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .modal-h {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(18px, 2.5vw, 26px);
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: var(--light);
+    margin-bottom: 28px;
+  }
+
+  .modal-protocol-header {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--light);
+    letter-spacing: 0.08em;
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .modal-protocol-item {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(26,26,26,0.6);
+    align-items: baseline;
+  }
+
+  .modal-protocol-item:last-child { border-bottom: none; }
+
+  .modal-p-step {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--emerald);
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 3px 4px;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .modal-p-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--telemetry);
+    letter-spacing: 0.04em;
+    line-height: 1.7;
+  }
+
+  .modal-note {
+    margin-top: 32px;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: transparent;
+  }
+
+  .modal-note p {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--emerald);
+    letter-spacing: 0.1em;
+    line-height: 1.8;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 700px) {
+    .modal-box { grid-template-columns: 1fr; }
+    .modal-left { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 32px 24px; }
+    .modal-right { padding: 32px 24px; }
+  }
+
+  .f-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    color: var(--telemetry);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .f-input, .f-select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--light);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 18px 14px;
+    outline: none;
+    letter-spacing: 0.04em;
+    margin-bottom: 20px;
+    appearance: none;
+    cursor: crosshair;
+    transition: border-color 0.15s ease;
+  }
+
+  .f-input::placeholder {
+    color: rgba(58, 138, 90, 0.2);
+    letter-spacing: 0.1em;
+  }
+
+  .f-input:focus, .f-select:focus {
+    transform: translate(2px, 2px);
+    border-color: rgba(255,255,255,0.25);
+  }
+
+  .f-select option { background: #0A0A0A; }
+
+  /* ── CUSTOM TERMINAL SELECTORS ── */
+  .f-selector {
+    width: 100%;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: transparent;
+  }
+
+  .f-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--telemetry);
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid rgba(26,26,26,0.8);
+    cursor: crosshair;
+    transition: background 0.1s, color 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .f-selector-row:last-child { border-bottom: none; }
+
+  .f-selector-row:hover {
+    background: rgba(58,138,90,0.06);
+    color: var(--light);
+  }
+
+  .f-selector-row.active {
+    color: var(--light);
+    background: rgba(58,138,90,0.08);
+  }
+
+  .f-selector-row.active .f-check {
+    color: var(--emerald);
+  }
+
+  .f-check {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: rgba(115,115,115,0.3);
+    flex-shrink: 0;
+    transition: color 0.1s;
+    min-width: 20px;
+  }
+
+  .f-submit {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--platinum);
+    color: var(--platinum);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 16px 24px;
+    cursor: crosshair;
+    text-align: left;
+    margin-top: 8px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .f-submit:hover {
+    background: var(--platinum);
+    color: #000000;
+    border-color: var(--platinum);
+  }
+
+  .f-error {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: #e05a5a;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    display: none;
+  }
+
+  .f-success {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--emerald);
+    letter-spacing: 0.1em;
+    line-height: 1.8;
+    display: none;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 700px) {
+    .logic-grid { grid-template-columns: 1fr; gap: 36px; }
+    .infra-header { grid-template-columns: 1fr; gap: 24px; }
+    .sys-head { display: none; }
+    .sys-card { grid-template-columns: 1fr; gap: 20px; padding: 32px 0; }
+    .sys-card > div { padding: 0; }
+    .audit-inner { grid-template-columns: 1fr; gap: 40px; padding: 24px; }
+    .audit-h2 { font-size: clamp(22px, 7vw, 36px); }
+    #audit { padding: 60px 16px; }
+    .section { padding: 80px 20px; }
+    #hero { padding-left: 20px; padding-right: 20px; padding-bottom: 60px; }
+    .nav-inner { padding: 0 20px; }
+    .hero-stats { grid-template-columns: repeat(3, 1fr); }
+    .hero-stat:last-child { border-right: none; grid-column: auto; border-top: none; }
+    .proof-row { grid-template-columns: 1fr; gap: 20px; }
+    .nav-ver { display: none; }
+  }
+
+  @media (max-width: 420px) {
+    .nav-right { gap: 16px; }
+    .hero-stats { grid-template-columns: repeat(3, 1fr); }
+    .hero-stat { border-top: none; }
+    .hero-stat:first-child { border-top: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<!-- Hollow depth layers -->
+<div class="depth-rim" aria-hidden="true"></div>
+<div class="depth-corners" aria-hidden="true"></div>
+<div id="stars" aria-hidden="true"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-mark">ZYVR</a>
+    <div class="nav-right">
+      <div class="nav-status">
+        <div class="status-dot"></div>
+        System Active
+      </div>
+      <span class="nav-ver mono">v3.0 // 2026</span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-eyebrow fu d1">Autonomous Operational Infrastructure</div>
+
+  <div class="sys-active-tag fu d1">SYS_ACTIVE</div>
+
+  <h1 class="hero-h1 fu d2">
+    Your Business<br>Needs an <em>OS.</em><br>Not an Agency.
+  </h1>
+
+  <p class="hero-sub fu d3">
+    Infrastructure that runs when you don't.<br>
+    Built for founders whose time is the scarcest<br>
+    resource on the balance sheet.
+  </p>
+
+  <a href="#audit" class="hero-cta fu d4" onclick="event.preventDefault(); openModal();">
+    Request Zyvr Audit →
+  </a>
+
+  <div class="hero-stats fu d5">
+    <div class="hero-stat">
+      <span class="hero-stat-num">5</span>
+      <span class="hero-stat-label">Core Systems</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num">48h</span>
+      <span class="hero-stat-label" style="white-space:nowrap;">Audit Turnaround</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num">7-fig</span>
+      <span class="hero-stat-label">Operator Tier</span>
+    </div>
+  </div>
+</section>
+
+<!-- SYSTEM LOGIC -->
+<section class="section" id="system-logic">
+  <div class="section-tag reveal">
+    <span class="section-tag-num">00</span>
+    System Logic
+  </div>
+
+  <div class="logic-grid reveal">
+    <div>
+      <div class="sys-active-tag">INFRA_LOGIC</div>
+      <h2 class="logic-h2">
+        The Shift from<br><em>Service</em><br>to Infrastructure.
+      </h2>
+    </div>
+    <div>
+      <p class="logic-body">
+        Most operators at the seven-figure level still run on human-dependent, single-point-of-failure workflows. Content leaves when the contractor does. Messaging erodes between campaigns. Conversion assets exist as one-off deliverables, not compounding infrastructure.
+      </p>
+
+      <div class="logic-pull">
+        <p>Zyvr does not deliver outputs — it installs systems.</p>
+      </div>
+
+      <div style="width:100%;height:1px;background:var(--graphite);margin:8px 0 20px;"></div>
+
+      <p class="logic-body">
+        Each engagement is an asset drop into your operational architecture: a component that executes without your presence, feeds into adjacent components, and holds structural integrity across personnel changes, market shifts, and founder absence. This is not a retainer. This is not a service. This is the difference between owning a machine and renting a hand.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- PROOF -->
+<section class="section" id="proof">
+  <div class="section-tag reveal">
+    <span class="section-tag-num">∅1</span>
+    Operational Evidence
+  </div>
+
+  <div class="proof-row reveal">
+    <div>
+      <div class="proof-num">340%</div>
+      <div class="proof-label">Inbound Lift</div>
+    </div>
+    <div>
+      <p class="proof-quote">"Within six weeks of deploying SYS-01 and SYS-05, inbound volume increased and our qualification rate went from 22% to 71%. We stopped chasing and started filtering."</p>
+      <div class="proof-attr"><span style="color:#3A8A5A">— Head of Operations, E-Commerce Brand // $4.2M ARR // SYS-01 + SYS-05 Deployment</span></div>
+    </div>
+  </div>
+
+  <div class="proof-row reveal">
+    <div>
+      <div class="proof-num">18h</div>
+      <div class="proof-label">Reclaimed / Week</div>
+    </div>
+    <div>
+      <p class="proof-quote">"The AI Playbook Engine removed the founder from the content production loop entirely. Our team now operates from a command framework — output is consistent whether the founder is present or not."</p>
+      <div class="proof-attr"><span style="color:#3A8A5A">— Founder, B2B SaaS Platform // $1.8M ARR // SYS-02 Deployment</span></div>
+    </div>
+  </div>
+
+  <div class="proof-row reveal" style="border-bottom:none;">
+    <div>
+      <div class="proof-num">$280K</div>
+      <div class="proof-label">Pipeline / 90 Days</div>
+    </div>
+    <div>
+      <p class="proof-quote">"The Authority Mini-Book Engine packaged eight years of expertise into a deployable asset. The manuscript became the top-of-funnel mechanism we didn't know we were missing."</p>
+      <div class="proof-attr"><span style="color:#3A8A5A">— Managing Partner, Professional Services Firm // $3.1M ARR // SYS-04 Deployment</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- INFRASTRUCTURE -->
+<section class="section" id="infrastructure">
+  <div class="section-tag reveal">
+    <span class="section-tag-num">01</span>
+    The Infrastructure Stack
+  </div>
+
+  <div class="infra-header reveal">
+    <h2 class="infra-h2">Five Systems.<br>One Architecture.</h2>
+    <div class="infra-meta">
+      Each module is a standalone asset.<br>
+      Each module integrates with adjacent systems.<br>
+      <span style="color:#3A8A5A">Select individually or deploy the full stack.</span>
+    </div>
+  </div>
+
+  <div class="sys-head">
+    <div class="sys-head-col" style="color:#3A8A5A">System</div>
+    <div class="sys-head-col" style="color:#3A8A5A">Inefficiency</div>
+    <div class="sys-head-col" style="color:#3A8A5A">Asset Installed</div>
+    <div class="sys-head-col" style="color:#3A8A5A">Investment</div>
+  </div>
+
+  <!-- SYS 01 -->
+  <div class="sys-card">
+    <div>
+      <div class="sys-id">[SYS_01]</div>
+      <div class="sys-name">Done-For-You<br>Voice Content<br>Retainer</div>
+      <span class="sys-tag">SYS_CYCLE_01</span>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Inefficiency</span>
+      <div class="sys-col">Founder voice dies in silence between content cycles. Brand identity decays when output depends on available founder hours.</div>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Asset Installed</span>
+      <div class="sys-col">Cloned identity architecture. 10 emails + 15 posts (1-cycle) or 20 emails + 30 posts (2-cycle). Voice-matched. Deployment-ready.</div>
+    </div>
+    <div>
+      <div class="sys-price">$2,500<span style="font-size:11px;font-weight:300;color:#3A8A5A">/cycle</span></div>
+      <div class="sys-deposit"><span style="color:#3A8A5A">or $5,000 (2-cycle sprint)</span></div>
+      <a href="#audit" class="sys-link" onclick="activateSystem('sys01'); return false;">Activate →</a>
+    </div>
+  </div>
+
+  <!-- SYS 02 -->
+  <div class="sys-card">
+    <div>
+      <div class="sys-id">[SYS_02]</div>
+      <div class="sys-name">AI Playbook<br>Engine</div>
+      <span class="sys-tag">Team Infrastructure</span>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Inefficiency</span>
+      <div class="sys-col">Internal teams operate without a command framework. Content quality is inconsistent. AI tools are underdeployed or misaligned to brand voice.</div>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Asset Installed</span>
+      <div class="sys-col">Command Center deployment. 5 master voice prompts. 3 operational SOPs. 60-min onboarding workshop. 30 days direct Slack support.</div>
+    </div>
+    <div>
+      <div class="sys-price">$6,000</div>
+      <div class="sys-deposit"><span style="color:#3A8A5A">$2,000</span> <span style="color:#3A8A5A">Resource Commitment Allocation</span></div>
+      <a href="#audit" class="sys-link" onclick="activateSystem('sys02'); return false;">Activate →</a>
+    </div>
+  </div>
+
+  <!-- SYS 03 -->
+  <div class="sys-card">
+    <div>
+      <div class="sys-id">[SYS_03]</div>
+      <div class="sys-name">Video Scripting<br>Engine</div>
+      <span class="sys-tag">Content Architecture</span>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Inefficiency</span>
+      <div class="sys-col">Video strategy is reactive and format-agnostic. Hook failure occurs in the first three seconds. Long-form concepts lack structural integrity.</div>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Asset Installed</span>
+      <div class="sys-col">20 short-form scripts calibrated for retention. 5 long-form content concepts. Custom visual hook matrix engineered for pattern interruption.</div>
+    </div>
+    <div>
+      <div class="sys-price">$3,500</div>
+      <div class="sys-deposit"><span style="color:#3A8A5A">$1,000</span> <span style="color:#3A8A5A">Resource Commitment Allocation</span></div>
+      <a href="#audit" class="sys-link" onclick="activateSystem('sys03'); return false;">Activate →</a>
+    </div>
+  </div>
+
+  <!-- SYS 04 -->
+  <div class="sys-card">
+    <div>
+      <div class="sys-id">[SYS_04]</div>
+      <div class="sys-name">Authority<br>Mini-Book<br>Engine</div>
+      <span class="sys-tag">Authority Infrastructure</span>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Inefficiency</span>
+      <div class="sys-col">Founders with deep expertise have no packaged authority asset. Credibility exists as reputation, not transferable intellectual property.</div>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Asset Installed</span>
+      <div class="sys-col">Amazon-ready manuscript. Book-funnel landing page script. 10 promotional social assets built for pre-launch and post-publish distribution.</div>
+    </div>
+    <div>
+      <div class="sys-price">$5,500</div>
+      <div class="sys-deposit"><span style="color:#3A8A5A">$1,000</span> <span style="color:#3A8A5A">Resource Commitment Allocation</span></div>
+      <a href="#audit" class="sys-link" onclick="activateSystem('sys04'); return false;">Activate →</a>
+    </div>
+  </div>
+
+  <!-- SYS 05 -->
+  <div class="sys-card" style="border-bottom:none;">
+    <div>
+      <div class="sys-id">[SYS_05]</div>
+      <div class="sys-name">Inbound DM<br>Setter<br>Infrastructure</div>
+      <span class="sys-tag">Revenue Operations</span>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Inefficiency</span>
+      <div class="sys-col">Inbound leads are handled inconsistently. Qualification logic is improvised. High-value prospects are triaged identically to low-intent contacts.</div>
+    </div>
+    <div>
+      <span class="sys-col-label" style="color:#3A8A5A">Asset Installed</span>
+      <div class="sys-col">5 voice frameworks. VIP whitelist + triage protocol. 100-scenario stress test. CRM dashboard build. 30 days hyper-care post-deployment.</div>
+    </div>
+    <div>
+      <div class="sys-price">$10,000</div>
+      <div class="sys-deposit"><span style="color:#3A8A5A">$3,000</span> <span style="color:#3A8A5A">Resource Commitment Allocation</span></div>
+      <a href="#audit" class="sys-link" onclick="activateSystem('sys05'); return false;">Activate →</a>
+    </div>
+  </div>
+</section>
+
+<!-- AUDIT -->
+<section id="audit">
+  <div class="audit-watermark">AUDIT</div>
+
+  <div style="position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:60px 0 0;">
+    <div class="section-tag">
+      <span class="section-tag-num">02</span>
+      Zyvr Audit
+    </div>
+
+    <div class="audit-inner">
+      <div>
+        <div class="sys-active-tag" style="color:#144226;font-size:8px;letter-spacing:0.2em;">[STATUS: DIAGNOSTIC_OPEN]</div>
+        <h2 class="audit-h2">One Conversation.<br>Full Operational<br><em>Diagnosis.</em></h2>
+
+        <div class="req-list">
+          <div class="req-item">
+            <span class="req-badge">REQ</span>
+            Your operation currently generates $500K or more in annual revenue.
+          </div>
+          <div class="req-item">
+            <span class="req-badge">REQ</span>
+            You have identified at least one operational system that depends entirely on your direct involvement to function.
+          </div>
+          <div class="req-item">
+            <span class="req-badge">REQ</span>
+            You are prepared to make a capital decision inside 14 days of the audit.
+          </div>
+          <div class="req-item">
+            <span class="req-badge">REQ</span>
+            You are not looking for content support. You are looking for infrastructure that removes you from the production loop.
+          </div>
+        </div>
+
+        <button class="audit-btn" onclick="openModal()">
+          Request Zyvr Audit →
+        </button>
+        <div class="audit-capacity"><span style="color:#3A8A5A">Capacity is limited. Active engagements take priority.</span></div>
+      </div>
+
+      <div>
+        <div class="protocol-header">AUDIT PROTOCOL</div>
+        <div class="protocol-item">
+          <span class="p-step">01.</span>
+          <span class="p-text">60-minute diagnostic session. No pitch. No deck.</span>
+        </div>
+        <div class="protocol-item">
+          <span class="p-step">02.</span>
+          <span class="p-text">Complete operational gap analysis delivered within 48 hours.</span>
+        </div>
+        <div class="protocol-item">
+          <span class="p-step">03.</span>
+          <span class="p-text">Specific system recommendations matched to your current revenue architecture.</span>
+        </div>
+        <div class="protocol-item">
+          <span class="p-step">04.</span>
+          <span class="p-text">Audit cost: $0. Engagement is earned, not charged for.</span>
+        </div>
+        <div class="protocol-item" style="border-bottom:none;">
+          <span class="p-step">05.</span>
+          <span class="p-text">Two audits accepted per cycle. Applications screened before scheduling.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <span class="footer-mark">ZYVR // 2026 // OPERATIONAL INFRASTRUCTURE // NEW YORK</span>
+  <div class="footer-status">
+    <div class="status-dot" style="width:4px;height:4px;"></div>
+    Live
+  </div>
+</footer>
+
+<!-- INTAKE MODAL -->
+<div id="modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕ CLOSE</button>
+
+    <!-- LEFT: FORM -->
+    <div class="modal-left">
+      <div class="modal-tag">Zyvr Audit</div>
+      <h2 class="modal-h">Intake<br>Protocol</h2>
+
+      <div style="width:100%;height:1px;background:var(--graphite);margin-bottom:28px;"></div>
+
+      <label class="f-label">Full Name</label>
+      <input id="f-name" class="f-input" type="text" placeholder="—" />
+
+      <label class="f-label">Business Email</label>
+      <input id="f-email" class="f-input" type="email" placeholder="—" />
+
+      <label class="f-label">Annual Revenue</label>
+      <div class="f-selector" id="sel-rev" data-field="f-rev">
+        <div class="f-selector-row" data-value="500k-1m" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>$500K – $1M
+        </div>
+        <div class="f-selector-row" data-value="1m-3m" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>$1M – $3M
+        </div>
+        <div class="f-selector-row" data-value="3m-10m" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>$3M – $10M
+        </div>
+        <div class="f-selector-row" data-value="10m+" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>$10M+
+        </div>
+      </div>
+      <input type="hidden" id="f-rev" value="" />
+
+      <label class="f-label">Primary Operational Gap</label>
+      <div class="f-selector" id="sel-gap" data-field="f-gap">
+        <div class="f-selector-row" data-value="sys01" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>SYS-01 — Voice Content / Founder Dependency
+        </div>
+        <div class="f-selector-row" data-value="sys02" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>SYS-02 — Team Output / AI Alignment
+        </div>
+        <div class="f-selector-row" data-value="sys03" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>SYS-03 — Video Strategy / Retention
+        </div>
+        <div class="f-selector-row" data-value="sys04" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>SYS-04 — Authority IP / Packaged Credibility
+        </div>
+        <div class="f-selector-row" data-value="sys05" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>SYS-05 — Inbound Lead Qualification
+        </div>
+        <div class="f-selector-row" data-value="full" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>Full Stack Audit
+        </div>
+      </div>
+      <input type="hidden" id="f-gap" value="" />
+
+      <label class="f-label">Decision Timeline</label>
+      <div class="f-selector" id="sel-timeline" data-field="f-timeline">
+        <div class="f-selector-row" data-value="14d" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>Within 14 days
+        </div>
+        <div class="f-selector-row" data-value="30d" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>Within 30 days
+        </div>
+        <div class="f-selector-row" data-value="60d" onclick="selectRow(this)">
+          <span class="f-check">[ ]</span>60+ days
+        </div>
+      </div>
+      <input type="hidden" id="f-timeline" value="" />
+
+      <div id="f-error" class="f-error"></div>
+      <div id="f-success" class="f-success">APPLICATION RECEIVED. WE SCREEN BEFORE SCHEDULING.<br>IF QUALIFIED, YOU WILL HEAR FROM US WITHIN 48H.</div>
+
+      <button class="f-submit" id="f-btn" onclick="submitIntake()">Submit Application →</button>
+
+      <p style="font-family:'DM Mono',monospace;font-size:8px;color:#3A8A5A;letter-spacing:0.1em;margin-top:16px;line-height:1.8;text-transform:uppercase;">Two audits accepted per cycle. Applications screened before scheduling.</p>
+    </div>
+
+    <!-- RIGHT: PROTOCOL -->
+    <div class="modal-right">
+      <div class="sys-active-tag" style="color:var(--emerald);font-size:8px;letter-spacing:0.2em;">[STATUS: DIAGNOSTIC_OPEN]</div>
+      <div class="modal-protocol-header">AUDIT PROTOCOL</div>
+      <div class="modal-protocol-item">
+        <span class="modal-p-step">01.</span>
+        <span class="modal-p-text">60-minute diagnostic session. No pitch. No deck.</span>
+      </div>
+      <div class="modal-protocol-item">
+        <span class="modal-p-step">02.</span>
+        <span class="modal-p-text">Complete operational gap analysis delivered within 48 hours.</span>
+      </div>
+      <div class="modal-protocol-item">
+        <span class="modal-p-step">03.</span>
+        <span class="modal-p-text">Specific system recommendations matched to your current revenue architecture.</span>
+      </div>
+      <div class="modal-protocol-item">
+        <span class="modal-p-step">04.</span>
+        <span class="modal-p-text">Audit cost: $0. Engagement is earned, not charged for.</span>
+      </div>
+      <div class="modal-protocol-item">
+        <span class="modal-p-step">05.</span>
+        <span class="modal-p-text" style="color:#3A8A5A">Two audits accepted per cycle. Applications screened before scheduling.</span>
+      </div>
+      <div class="modal-note">
+        <p>Capacity is limited.<br>Active engagements<br>take priority.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── CSS STAR FIELD ──
+  (function() {
+    const container = document.getElementById('stars');
+    const COUNT = window.innerWidth > 900 ? 220 : 80;
+    const frag  = document.createDocumentFragment();
+    for (let i = 0; i < COUNT; i++) {
+      const s    = document.createElement('div');
+      s.className = 'star';
+      const size  = Math.random() < 0.1 ? (Math.random() * 1.2 + 1) : (Math.random() * 0.8 + 0.4);
+      const peak  = (Math.random() * 0.5 + 0.35).toFixed(2);
+      const dur   = (Math.random() * 6 + 3).toFixed(1);
+      const delay = '-' + (Math.random() * 10).toFixed(1) + 's';
+      s.style.cssText =
+        `left:${(Math.random()*100).toFixed(1)}%;` +
+        `top:${(Math.random()*100).toFixed(1)}%;` +
+        `width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;` +
+        `--peak:${peak};--dur:${dur}s;--delay:${delay};`;
+      if (Math.random() < 0.08) s.style.background = '#a8dfc0';
+      frag.appendChild(s);
+    }
+    container.appendChild(frag);
+  })();
+
+  // ── SCROLL REVEAL ──
+  const revealEls = document.querySelectorAll(
+    '.reveal, .reveal-stagger, .sys-card, .audit-inner'
+  );
+
+  // Apply staggered delay to sys-cards
+  document.querySelectorAll('.sys-card').forEach((el, i) => {
+    el.style.transitionDelay = `${i * 0.06}s`;
+  });
+
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+      } else {
+        // Remove so it re-animates next time it scrolls back into view
+        e.target.classList.remove('visible');
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  revealEls.forEach(el => {
+    if (!el.classList.contains('reveal') && !el.classList.contains('reveal-stagger')) {
+      el.classList.add('reveal');
+    }
+    revealObs.observe(el);
+  });
+
+  // ── TERMINAL SELECTOR LOGIC ──
+  function selectRow(row) {
+    const container = row.closest('.f-selector');
+    const fieldId = container.dataset.field;
+    const isActive = row.classList.contains('active');
+
+    // Deactivate all siblings
+    container.querySelectorAll('.f-selector-row').forEach(r => {
+      r.classList.remove('active');
+      r.querySelector('.f-check').textContent = '[ ]';
+    });
+
+    if (!isActive) {
+      // Activate selected
+      row.classList.add('active');
+      row.querySelector('.f-check').textContent = '[X]';
+      document.getElementById(fieldId).value = row.dataset.value;
+    } else {
+      // Deselected — clear hidden input
+      document.getElementById(fieldId).value = '';
+    }
+  }
+
+  // Intake form
+  async function submitIntake() {
+    const name     = document.getElementById('f-name').value.trim();
+    const email    = document.getElementById('f-email').value.trim();
+    const rev      = document.getElementById('f-rev').value;
+    const gap      = document.getElementById('f-gap').value;
+    const timeline = document.getElementById('f-timeline').value;
+    const err      = document.getElementById('f-error');
+    const suc      = document.getElementById('f-success');
+    const btn      = document.getElementById('f-btn');
+
+    err.style.display = 'none';
+
+    if (!name || !email || !rev || !gap || !timeline) {
+      err.textContent = '// ALL FIELDS REQUIRED. INCOMPLETE APPLICATIONS ARE NOT REVIEWED.';
+      err.style.display = 'block';
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      err.textContent = '// INVALID EMAIL FORMAT.';
+      err.style.display = 'block';
+      return;
+    }
+    if (timeline !== '14d') {
+      err.textContent = '// ZYVR REQUIRES CAPITAL DECISION READINESS WITHIN 14 DAYS. APPLICATION NOT ACCEPTED.';
+      err.style.display = 'block';
+      return;
+    }
+
+    btn.textContent = 'TRANSMITTING...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch('https://formspree.io/f/mdajdnza', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ name, email, annual_revenue: rev, operational_gap: gap, decision_timeline: timeline })
+      });
+
+      if (response.ok) {
+        btn.style.display = 'none';
+        suc.style.display = 'block';
+        setTimeout(() => { closeModal(); setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 160); }, 2200);
+      } else {
+        const data = await response.json();
+        err.textContent = '// SUBMISSION FAILED. ' + (data.error || 'PLEASE TRY AGAIN.');
+        err.style.display = 'block';
+        btn.textContent = 'Submit Application →';
+        btn.disabled = false;
+      }
+    } catch (e) {
+      err.textContent = '// NETWORK ERROR. CHECK CONNECTION AND RETRY.';
+      err.style.display = 'block';
+      btn.textContent = 'Submit Application →';
+      btn.disabled = false;
+    }
+  }
+
+  const PAGE_SECTIONS = ['hero', 'system-logic', 'proof', 'infrastructure', 'audit'];
+
+  function openModal() {
+    PAGE_SECTIONS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.visibility = 'hidden';
+    });
+    document.querySelector('nav').style.visibility = 'hidden';
+    document.querySelector('footer').style.visibility = 'hidden';
+    document.getElementById('modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('modal');
+    modal.classList.add('is-closing');
+    setTimeout(() => {
+      modal.style.display = 'none';
+      modal.classList.remove('is-closing');
+      document.body.style.overflow = '';
+      PAGE_SECTIONS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.visibility = '';
+      });
+      document.querySelector('nav').style.visibility = '';
+      document.querySelector('footer').style.visibility = '';
+    }, 150);
+  }
+
+  function activateSystem(sysId) {
+    // Open modal
+    openModal();
+    // After modal opens, select the matching row in the gap selector
+    setTimeout(() => {
+      const selector = document.getElementById('sel-gap');
+      if (!selector) return;
+      // Deselect all first
+      selector.querySelectorAll('.f-selector-row').forEach(r => {
+        r.classList.remove('active');
+        r.querySelector('.f-check').textContent = '[ ]';
+      });
+      // Find and select the matching row
+      const target = selector.querySelector('[data-value="' + sysId + '"]');
+      if (target) {
+        target.classList.add('active');
+        target.querySelector('.f-check').textContent = '[X]';
+        document.getElementById('f-gap').value = sysId;
+        togglePackage(target);
+      }
+    }, 50);
+  }
+
+  function togglePackage(row) {
+    const wrap = document.getElementById('package-wrap');
+    const pkg  = document.getElementById('sel-package');
+    const isActive = row.dataset.value === 'sys01' && row.classList.contains('active');
+    if (isActive) {
+      wrap.style.display = 'block';
+    } else {
+      wrap.style.display = 'none';
+      // Clear package selection
+      pkg.querySelectorAll('.f-selector-row').forEach(r => {
+        r.classList.remove('active');
+        r.querySelector('.f-check').textContent = '[ ]';
+      });
+      document.getElementById('f-package').value = '';
+    }
+  }
+</script>
+
+</body>
+</html>
